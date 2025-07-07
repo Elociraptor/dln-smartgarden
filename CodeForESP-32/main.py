@@ -1,8 +1,4 @@
 # =====================================================
-# MAIN.PY - HAUPTPROGRAMM FÜR SENSORDATEN-ERFASSUNG
-# =====================================================
-
-# =====================================================
 # IMPORT SECTION
 # =====================================================
 
@@ -16,7 +12,6 @@ import dht
 import machine
 from hcsr04 import HCSR04
 
-# Zentrale Konfiguration importieren
 from mysettings import (
     # Hardware Pins
     DHT22PIN,
@@ -80,12 +75,12 @@ def init_sensors():
     sensors = {}
     
     try:
-        # ===== DHT22 TEMPERATUR & LUFTFEUCHTIGKEIT SENSOR =====
+        # ===== DHT22 =====
         if DEBUG_MODE:
             print('Initialisiere DHT22 Sensor (Pin {})...'.format(DHT22PIN))
         sensors['dht'] = dht.DHT22(machine.Pin(DHT22PIN))
         
-        # ===== ULTRASCHALL ENTFERNUNGSSENSOR HC-SR04 =====
+        # ===== HC-SR04 =====
         if DEBUG_MODE:
             print('Initialisiere HC-SR04 (Trigger: {}, Echo: {})...'.format(
                 ULTRASONIC_TRIGGER_PIN, ULTRASONIC_ECHO_PIN))
@@ -95,7 +90,7 @@ def init_sensors():
             echo_timeout_us=ULTRASONIC_TIMEOUT_US
         )
         
-        # ===== ANALOGER BODENFEUCHTIGKEITSSENSOR =====
+        # ===== BODENFEUCHTIGKEITSSENSOR =====
         if DEBUG_MODE:
             print('Initialisiere Bodenfeuchtigkeitssensor (Pin {})...'.format(MOISTURE_SENSOR_PIN))
         
@@ -153,7 +148,6 @@ def read_temperature_humidity(sensors):
             temperature = dht_sensor.temperature()
             humidity = dht_sensor.humidity()
             
-            # Werte validieren
             temp_valid = validate_sensor_value(temperature, TEMP_MIN_LIMIT, TEMP_MAX_LIMIT, "Temperatur")
             humi_valid = validate_sensor_value(humidity, HUMI_MIN_LIMIT, HUMI_MAX_LIMIT, "Luftfeuchtigkeit")
             
@@ -163,7 +157,7 @@ def read_temperature_humidity(sensors):
         except Exception as e:
             if DEBUG_MODE:
                 print('DHT22 Versuch {}/{} fehlgeschlagen: {}'.format(attempt + 1, SENSOR_RETRY_COUNT, e))
-            time.sleep(0.5)  # Kurze Pause zwischen Versuchen
+            time.sleep(0.5) 
     
     print('FEHLER: DHT22 nach {} Versuchen nicht lesbar'.format(SENSOR_RETRY_COUNT))
     return None, None
@@ -183,14 +177,13 @@ def read_distance(sensors):
         try:
             distance = ultrasonic_sensor.distance_cm()
             
-            # Wert validieren
             if validate_sensor_value(distance, DIST_MIN_LIMIT, DIST_MAX_LIMIT, "Entfernung"):
                 return distance
                 
         except Exception as e:
             if DEBUG_MODE:
                 print('Ultraschall Versuch {}/{} fehlgeschlagen: {}'.format(attempt + 1, SENSOR_RETRY_COUNT, e))
-            time.sleep(0.1)  # Kurze Pause zwischen Versuchen
+            time.sleep(0.1)
     
     print('FEHLER: Ultraschallsensor nach {} Versuchen nicht lesbar'.format(SENSOR_RETRY_COUNT))
     return None
@@ -209,7 +202,6 @@ def read_soil_moisture(sensors):
     try:
         moisture = moisture_sensor.read()
         
-        # Interpretation ausgeben wenn Debug aktiv
         if DEBUG_MODE:
             if moisture > MOISTURE_DRY_THRESHOLD:
                 status = "TROCKEN"
@@ -237,13 +229,11 @@ def publish_sensor_data(client, temp, humi, dist, moist):
         moist: Bodenfeuchtigkeit (ADC-Wert)
     """
     try:
-        # Nachrichten formatieren oder Fehlermeldungen verwenden
         temp_msg = b'temp:%.1f' % temp if temp is not None else ERROR_MSG_TEMP
         humi_msg = b'humi:%.1f' % humi if humi is not None else ERROR_MSG_HUMI
         dist_msg = b'distance:%.1f cm' % dist if dist is not None else ERROR_MSG_DIST
         moist_msg = b'moist:%d' % moist if moist is not None else ERROR_MSG_MOIST
         
-        # Daten ausgeben
         print('--- SENSORDATEN ---')
         print('Temperatur:', temp_msg.decode())
         print('Luftfeuchtigkeit:', humi_msg.decode())
@@ -253,7 +243,6 @@ def publish_sensor_data(client, temp, humi, dist, moist):
         if MEMORY_MONITORING:
             print('Freier Speicher:', gc.mem_free(), 'Bytes')
         
-        # Via MQTT senden mit konfigurierbaren Topics
         client.publish(TEMP_TOPIC, temp_msg)
         client.publish(HUMI_TOPIC, humi_msg)
         client.publish(DIST_TOPIC, dist_msg)
@@ -273,13 +262,12 @@ def main():
     """
     Hauptfunktion mit allen konfigurierbaren Parametern aus mysettings.py
     """
-    # Sensoren initialisieren
     sensors = init_sensors()
     if sensors is None:
         print('KRITISCHER FEHLER: Sensoren konnten nicht initialisiert werden')
         return
     
-    # ===== INITIAL-MESSUNG (TEST) =====
+    # ===== INITIAL-MESSUNG =====
     if DEBUG_MODE:
         print('\n=== ERSTE TESTMESSUNG ===')
         
@@ -298,8 +286,6 @@ def main():
             print('FEHLER bei Test-Messung:', e)
     
     # ===== MQTT CLIENT AUS BOOT.PY VERWENDEN =====
-    # Der MQTT Client wurde bereits in boot.py initialisiert
-    # Wir müssen ihn hier importieren
     try:
         from boot import client
         print('\n=== HAUPTSCHLEIFE GESTARTET ===')
@@ -314,17 +300,15 @@ def main():
     
     while True:
         try:
-            # MQTT Nachrichten verarbeiten (non-blocking)
             client.check_msg()
             
-            # Prüfen ob Zeit für neue Messung
             current_time = time.ticks_ms()
             
             if time.ticks_diff(current_time, last_message_time) >= MESSAGE_INTERVAL * 1000:
                 if DEBUG_MODE:
                     print('\n--- NEUE MESSUNG ---')
                 
-                # Alle Sensoren auslesen
+                # Sensoren auslesen
                 temperature, humidity = read_temperature_humidity(sensors)
                 distance = read_distance(sensors)
                 moisture = read_soil_moisture(sensors)
@@ -332,14 +316,11 @@ def main():
                 # Daten via MQTT senden
                 publish_sensor_data(client, temperature, humidity, distance, moisture)
                 
-                # Zeitstempel aktualisieren
                 last_message_time = current_time
                 
-                # Garbage Collection
                 if MEMORY_MONITORING:
                     gc.collect()
             
-            # Kurze Pause um CPU nicht zu überlasten
             time.sleep(0.1)
             
         except KeyboardInterrupt:
@@ -363,8 +344,7 @@ def main():
                 import sys
                 sys.print_exception(e)
             
-            # Bei kritischen Fehlern kurz warten und weitermachen
-            time.sleep(5)
+            time.sleep(10)
 
 # =====================================================
 # PROGRAMM STARTEN
@@ -381,5 +361,4 @@ if __name__ == "__main__":
     
     print('\nSENSOR SYSTEM BEENDET')
 else:
-    # Wenn Datei als Modul importiert wird
     print('main.py als Modul geladen - verwende main() um zu starten')

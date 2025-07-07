@@ -1,8 +1,5 @@
 # =====================================================
-# BOOT.PY - SYSTEM INITIALISIERUNG
-# =====================================================
-# Diese Datei wird beim Start des ESP32/ESP8266 automatisch ausgeführt
-# Alle konfigurierbaren Parameter sind jetzt in mysettings.py!
+# Alle konfigurierbaren Parameter sind in mysettings.py!
 # =====================================================
 
 # =====================================================
@@ -21,10 +18,8 @@ import ubinascii
 # Hardware Control Imports
 from machine import Pin, PWM
 
-# MQTT Client Import
 from umqttsimple import MQTTClient
 
-# Zentrale Konfiguration importieren
 from mysettings import (
     # MQTT Konfiguration
     MQTT_SERVER,
@@ -60,7 +55,6 @@ from mysettings import (
     CMD_RECEIVED
 )
 
-# WLAN Credentials
 from mysecrets import my_SSID as ssid, my_PW as password
 
 # =====================================================
@@ -213,15 +207,15 @@ def sub_cb(topic, msg):
     if DEBUG_MODE:
         print('MQTT Nachricht empfangen:', topic, msg)
     
-    # ===== ALLGEMEINE BENACHRICHTIGUNGEN =====
+    
     if topic == NOTIFICATION_TOPIC and msg == CMD_RECEIVED:
         print('Bestätigung: ESP hat Nachricht empfangen')
     
-    # ===== PUMPEN-STEUERUNG =====
+   
     elif topic == PUMPE_TOPIC:
         control_pumpe(msg, hardware_devices)
     
-    # ===== LÜFTER-STEUERUNG =====
+  
     elif topic == LUEFTER_TOPIC:
         control_luefter(msg, hardware_devices)
     
@@ -260,7 +254,7 @@ def connect_and_subscribe():
         client.connect()
         print('Mit MQTT Broker verbunden:', MQTT_SERVER)
         
-        # Topics abonnieren
+
         topics_to_subscribe = [NOTIFICATION_TOPIC, PUMPE_TOPIC, LUEFTER_TOPIC]
         for topic in topics_to_subscribe:
             client.subscribe(topic)
@@ -294,9 +288,9 @@ def restart_and_reconnect():
         print('Automatischer Neustart aktiviert...')
         machine.reset()
 
-# =====================================================
-# HAUPTPROGRAMM - SYSTEM START
-# =====================================================
+# ==================================
+#           HAUPTPROGRAMM 
+# ==================================
 
 print('\n=== INITIALISIERUNG STARTEN ===')
 
